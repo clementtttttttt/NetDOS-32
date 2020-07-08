@@ -97,20 +97,112 @@ load:
     push eax
     push ebx
     call getmultiboot
+version:
     push versionstring
     call printstring
 	cli
+initpic:
+    push pic 
+    call printstring
+    push pic2 
+    call printstring
+    mov al,0x11
+    out 0x20,al
+    call iowait
+    out 0xa0,al
+    call iowait
+    mov al,0x20
+    out 0x21,al
+    call iowait
+    mov al,0x28
+    out 0xa1,al
+    call iowait
+    mov al,4
+    out 0x21,al
+    call iowait
+    mov al,2
+    out 0xa1,al
+    call iowait
+    mov al,1
+    out 0x21,al
+    call iowait
+    out 0xa1,al
+    call iowait
+    
+    mov eax,irq0
+    mov [idt.pitaddr],ax
+    mov eax,irq0
+    shr eax,16
+    mov [idt.pitaddrh],ax
+    
+    mov eax,irq1
+    mov [idt.keyaddr],ax
+    mov eax,irq1
+    shr eax,16
+    mov [idt.keyaddrh],ax
+    lidt[idtinfo]
+    push ok
+    call printstring
+    mov al,0
+    out 0x21,al
+    sti
+    jmp $
 global hang
 hang:	hlt
 	jmp hang
 end:
 
- 
+iowait:
+    jmp .next2
+    .next2 jmp .next3
+    .next3 jmp .next4
+    .next4 ret
+
 align 16
+
 section .bss
       stack_bottom:
     resb 16384 ; 16 KiB
     stack_top:
+section .isr
+idtinfo dw endidt-idt-1
+        dd idt
+idt:
+    times 0x20 dq 0
+    .pit:
+        .pitaddr dw 0 
+        dw 0x8
+        db 0
+        db 0b10001110
+        .pitaddrh dw 0 
+    .key:
+        .keyaddr dw 0
+        dw 0x8
+        db 0
+        db 0b10001110
+        .keyaddrh dw 0
+        
+    
+endidt:
+irq0:
+    pushad
+    mov al,0x20
+    out 0x20,al
+    popad
+    iretd
+irq1:
+    pushad
+    in al,60h
+    mov byte [keyboardbuffer],al
+    mov al,0x20
+    out 0x20,al
+    popad
+    iretd
 section .data
+    global keyboardbuffer
+    ok db "OK",10,0
     versionstring db "Starting NetDOS/32...",10,0
+    pic db "[Interrupt initializing routine]",10,0
+    pic2 db "Initializing PIC...",0
     psoutofboundfailsafe db 0
+    keyboardbuffer db 0
