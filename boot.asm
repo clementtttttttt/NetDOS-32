@@ -19,9 +19,9 @@ align 4
     dq 0
     dq 0
     dd 0
-    dd 0
-    dd 1920
-    dd 1080
+    dd 1
+    dd 80
+    dd 60
     dd 32
 ; The multiboot standard does not define the value of the stack pointer register
 ; (esp) and it is up to the kernel to provide a stack. This allocates room for a
@@ -94,6 +94,7 @@ load:
 	; stack since (pushed 0 bytes so far) and the alignment is thus
 	; preserved and the call is well defined.
         ; note, that if you are building on Windows, C functions may have "_" prefix in assembly: _kernel_main
+   
     push eax
     push ebx
     call getmultiboot
@@ -102,8 +103,6 @@ version:
     call printstring
 	cli
 initpic:
-    push pic 
-    call printstring
     push pic2 
     call printstring
     mov al,0x11
@@ -146,7 +145,13 @@ initpic:
     mov al,0
     out 0x21,al
     sti
-    jmp $
+    loop:
+    hlt
+    hlt
+    hlt
+    push pic2
+    call printstring
+    jmp loop
 global hang
 hang:	hlt
 	jmp hang
@@ -202,7 +207,6 @@ section .data
     global keyboardbuffer
     ok db "OK",10,0
     versionstring db "Starting NetDOS/32...",10,0
-    pic db "[Interrupt initializing routine]",10,0
     pic2 db "Initializing PIC...",0
     psoutofboundfailsafe db 0
     keyboardbuffer db 0

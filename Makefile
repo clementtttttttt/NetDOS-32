@@ -17,7 +17,7 @@ boot.o:boot.asm
 	@$(NASM) -o $@ $<  $(NFLAGS)
 %.o:%.c Makefile 
 	@echo "[CC] $<"
-	@$(CC) $(CFLAGS) -ffreestanding -std=gnu99 --target=i686-pc-elf -c -o $@ $< -I /usr/include/multiboot/
+	@$(CC) $(CFLAGS) -ffreestanding -std=gnu99 --target=i686-none-none-elf -c -o $@ $< -I /usr/include/multiboot/
 kernel.elf:$(OBJ) boot.o
 	@echo "[LD] $(OBJ) boot.o"
 	@$(LD) -Tlinker.ld -nostdlib -lgcc boot.o $(OBJ) -L./i686-elf/lib/gcc/i686-elf/10.1.0 -L./i686-elf-glibgc/lib -o $@
