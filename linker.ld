@@ -28,7 +28,7 @@ SECTIONS
 
 	   Next we'll put the .text section. */
 
-	.text BLOCK(4K) : ALIGN(4K)
+	.text  BLOCK(4K) : ALIGN(4K)
 
 	{
 
@@ -37,7 +37,6 @@ SECTIONS
 		*(.text)
 
 	}
-
  
 
 	/* Read-only data. */
@@ -51,7 +50,6 @@ SECTIONS
 	}
 
  
-
 	/* Read-write data (initialized) */
 
 	.data BLOCK(4K) : ALIGN(4K)
@@ -63,7 +61,6 @@ SECTIONS
 	}
 
  
-
 	/* Read-write data (uninitialized) and stack */
 
 	.bss BLOCK(4K) : ALIGN(4K)

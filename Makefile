@@ -1,9 +1,9 @@
 OBJ=$(patsubst %.c,%.o,$(wildcard *.c))
-CC=clang
-CFLAGS=-Wextra -Wall -O2
+CC=i686-elf-gcc
+CFLAGS=-Wextra -Wall -O2 -s -Wno-int-to-pointer-cast
 NASM=nasm
-NFLAGS=-felf32
-LD=i686-elf-ld
+NFLAGS=-felf32 
+LD=i686-elf-gcc
 all: os.iso 
 
 os.iso:kernel.elf
@@ -13,14 +13,14 @@ os.iso:kernel.elf
 	@sudo grub-mkrescue -o os.iso isodir
 	
 boot.o:boot.asm
-	@echo "[NASM] $<"
+	@echo "[NASM($(NASM))] $<"
 	@$(NASM) -o $@ $<  $(NFLAGS)
-%.o:%.c Makefile 
-	@echo "[CC] $<"
-	@$(CC) $(CFLAGS) -ffreestanding -std=gnu99 --target=i686-none-none-elf -c -o $@ $< -I /usr/include/multiboot/
+%.o:%.c font.h Makefile 
+	@echo "[CC($(CC))] $<"
+	@$(CC) $(CFLAGS) -ffreestanding -std=gnu99 -c -o $@ $< -I /usr/include/multiboot/   
 kernel.elf:$(OBJ) boot.o
-	@echo "[LD] $(OBJ) boot.o"
-	@$(LD) -Tlinker.ld -nostdlib -lgcc boot.o $(OBJ) -L./i686-elf/lib/gcc/i686-elf/10.1.0 -L./i686-elf-glibgc/lib -o $@
+	@echo "[LD($(LD))] $(OBJ) boot.o"
+	@$(LD)  -Tlinker.ld -o $@ -ffreestanding -O2 -nostdlib  boot.o  $(OBJ) -lgcc   $(CFLAGS)
 clean:
 	-rm *.o *.elf 
 test: all

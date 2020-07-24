@@ -1,7 +1,7 @@
 ; Declare constants for the multiboot header.
 MBALIGN  equ  1 << 0            ; align loaded modules on page boundaries
 MEMINFO  equ  1 << 1            ; provide memory map
-FLAGS    equ  0b00000000000000000000000000000100 ; this is the Multiboot 'flag' field
+FLAGS    equ  0b00000000000000000000000000000101 ; this is the Multiboot 'flag' field
 MAGIC    equ  0x1BADB002        ; 'magic number' lets bootloader find the header
 CHECKSUM equ -(MAGIC + FLAGS)   ; checksum of above, to prove we are multiboot
  	extern getmultiboot
@@ -12,6 +12,7 @@ extern printstring
 ; 32-bit boundary. The signature is in its own section so the header can be
 ; forced to be within the first 8 KiB of the kernel file.
 section .multiboot
+global tmb
 align 4
 	dd MAGIC
 	dd FLAGS
@@ -19,9 +20,9 @@ align 4
     dq 0
     dq 0
     dd 0
-    dd 1
-    dd 80
-    dd 60
+tmb dd 0
+    dd 1024
+    dd 768
     dd 32
 ; The multiboot standard does not define the value of the stack pointer register
 ; (esp) and it is up to the kernel to provide a stack. This allocates room for a
@@ -33,7 +34,6 @@ align 4
 ; System V ABI standard and de-facto extensions. The compiler will assume the
 ; stack is properly aligned and failure to align the stack will result in
 ; undefined behavior.
-
 
  
 ; The linker script specifies _start as the entry point to the kernel and the
@@ -52,7 +52,7 @@ _start:
 	; printf implementation. There are no security restrictions, no
 	; safeguards, no debugging mechanisms, only what the kernel provides
 	; itself. It has absolute and complete power over the
-	; machine.
+
  jmp gdt_end
 gdtinfo:
    dw gdt_end - gdt - 1   ;last byte in table
@@ -61,12 +61,13 @@ gdtinfo:
 gdt         dd 0,0        ; entry 0 is always unused
 flatcode    db 0xff, 0xff, 0, 0, 0, 10011010b, 11001111b, 0
 flatdata    db 0xff, 0xff, 0, 0, 0, 10010010b, 11001111b, 0
+framebuffer db 0xbf, 0x00, 0x00, 0x80, 0x0b, 11110010b, 11000000b, 0
 gdt_end:
 	; To set up a stack, we set the esp register to point to the top of our
 	; stack (as it grows downwards on x86 systems). This is necessarily done
 	; in assembly as languages such as C cannot function without a stack.
 	mov esp, stack_top
-   
+
 	; This is a good place to initialize crucial processor state before the
 	lgdt[gdtinfo]
 
@@ -78,8 +79,24 @@ load:
     mov fs,dx
     mov gs,dx
     mov ss,dx
-  
-     ;high-level kernel is entered. It's best to minimize the early
+mov cl,al
+disable_cursor:
+    mov dx,0x3d4
+    mov al,0xa
+    out dx,al
+    inc dx
+    mov al,0x20
+    out dx,al
+    mov al,cl
+    pushad
+
+change:
+    mov esi,regs_90x60
+    call write_regs
+    popad
+cend:
+    
+    ;high-level kernel is entered. It's best to minimize the early
 	; environment where crucial features are offline. Note that the
 	; processor is not fully initialized yet: Features such as floating
 	; point instructions and instruction set extensions are not initialized
@@ -97,7 +114,7 @@ load:
    
     push eax
     push ebx
-    call getmultiboot
+    call getmultiboot  
 version:
     push versionstring
     call printstring
@@ -144,19 +161,132 @@ initpic:
     call printstring
     mov al,0
     out 0x21,al
-    sti
-    loop:
-    hlt
-    hlt
-    hlt
-    push pic2
+scan_pci:
+    push pci
     call printstring
-    jmp loop
-global hang
-hang:	hlt
-	jmp hang
-end:
+    push ok
+    call printstring
+xor cx,cx
+jumptothis:
+    mov [dma_buffer],cx
+    push teststr
+    call printstring
+    mov cx,[dma_buffer]
+    sti
+    hlt
+    cli
 
+inc cx
+cmp cx,1234
+jne jumptothis
+   
+  global hang             
+cli
+hang:	
+    hlt 
+    jmp hang
+end:
+VGA_MISC_WRITE		EQU	3C2h
+VGA_SEQ_INDEX		EQU	3C4h
+VGA_SEQ_DATA		EQU	3C5h
+; VGA_DAC-READ_INDEX
+; VGA_DAC_WRITE_INDEX
+; VGA_DAC_DATA
+; VGA_MISC_READ
+VGA_CRTC_INDEX		EQU	3D4h
+VGA_CRTC_DATA		EQU	3D5h
+VGA_INSTAT_READ		EQU	3DAh
+
+NUM_SEQ_REGS		EQU	5
+NUM_CRTC_REGS		EQU	25
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; name:		write_regs
+; action:	writes register dump to VGA registers
+; inputs:	SI->register dump
+; outputs:	(nothing)
+; modifies:	(nothing)
+; minimum CPU:	8088
+; notes:
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+write_regs:
+	push si
+	push dx
+	push cx
+	push ax
+		cld
+
+; write MISC register
+		mov dx,VGA_MISC_WRITE
+		lodsb
+		out dx,al
+
+; write SEQuencer registers
+		mov cx,NUM_SEQ_REGS
+		mov ah,0
+write_seq:
+		mov dx,VGA_SEQ_INDEX
+		mov al,ah
+		out dx,al
+
+		mov dx,VGA_SEQ_DATA
+		lodsb
+		out dx,al
+
+		inc ah
+		loop write_seq
+
+; write CRTC registers
+; Unlock CRTC registers: enable writes to CRTC regs 0-7
+		mov dx,VGA_CRTC_INDEX
+		and al,7Fh
+		out dx,al
+
+; Unlock CRTC registers: enable access to vertical retrace regs
+		mov dx,VGA_CRTC_INDEX
+		mov al,3
+		out dx,al
+
+		mov dx,VGA_CRTC_DATA
+		in al,dx
+		or al,80h
+		out dx,al
+
+; make sure CRTC registers remain unlocked
+		mov al,[si + 17]
+		and al,7Fh
+		mov [si + 17],al
+
+		mov al,[si + 3]
+		or al,80h
+		mov [si + 3],al
+
+; now, finally, write them
+		mov cx,NUM_CRTC_REGS
+		mov ah,0
+write_crtc:
+		mov dx,VGA_CRTC_INDEX
+		mov al,ah
+		out dx,al
+
+		mov dx,VGA_CRTC_DATA
+		lodsb
+		out dx,al
+
+		inc ah
+		loop write_crtc
+	pop ax
+		mov al,17
+		out dx,al
+
+		mov dx,VGA_CRTC_DATA
+		in al,dx
+	pop cx
+	pop dx
+	pop si
+	ret
+	
 iowait:
     jmp .next2
     .next2 jmp .next3
@@ -169,6 +299,9 @@ section .bss
       stack_bottom:
     resb 16384 ; 16 KiB
     stack_top:
+    resb 0
+    dma_buffer:
+    resb 16384
 section .isr
 idtinfo dw endidt-idt-1
         dd idt
@@ -187,8 +320,18 @@ idt:
         db 0b10001110
         .keyaddrh dw 0
         
-    
+
 endidt:
+kdata:
+  .ctrlbit db 0
+    .shiftbit db 0
+    .temp db 0
+    .lookup_table dw 0
+        db "1234567890-=",8h,9h,"qwertyuiop[]",10,0x9e,"asdfghjkl;",27h,'`',0x7a,"\zxcvbnm,./",0,0,0,20h,'C'
+        times (0xe5-0x3b) db 0
+    .lookup_table_shift dw 0
+        db "!@#$%^&*()_+",8h,9h,"QWERTYUIOP{}",10,0,"ASDFGHJKL:",22h,'~',0x7a,0x7c,"ZXCVBNM",'<','>','?',0,0,0,20h,0x2a
+        times (0xe5-0x3b) db 0
 irq0:
     pushad
     mov al,0x20
@@ -197,8 +340,16 @@ irq0:
     iretd
 irq1:
     pushad
+    mov ebx,kdata.lookup_table
     in al,60h
-    mov byte [keyboardbuffer],al
+    add bl,al
+    mov cl,[ebx]
+    mov [keyboardbuffer],cl
+    
+    
+    
+    
+    
     mov al,0x20
     out 0x20,al
     popad
@@ -206,7 +357,21 @@ irq1:
 section .data
     global keyboardbuffer
     ok db "OK",10,0
+    teststr db "TESTING",0
     versionstring db "Starting NetDOS/32...",10,0
-    pic2 db "Initializing PIC...",0
+    pic2 db "Initializing PIC and interrupts...",0
+    pci db "Scanning PCI devices...",10,0
     psoutofboundfailsafe db 0
     keyboardbuffer db 0
+regs_90x60:
+; MISC
+	db 0Eh
+; SEQuencer
+	db 03h, 01h, 03h, 00h, 02h
+; CRTC
+	db  6Bh, 59h,  5Ah, 82h, 60h,  8Dh, 0Bh,  3Eh,
+	db  00h, 47h,  06h, 07h, 00h,  00h, 00h,  00h,
+	db 0EAh, 0Ch, 0DFh, 2Dh, 08h, 0E8h, 05h, 0A3h,
+	db 0FFh
+; GC (no)
+; AC (no)
