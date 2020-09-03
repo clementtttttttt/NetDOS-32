@@ -3,7 +3,6 @@
 #include <stddef.h>
 
 #include <stdint.h>
-
  
 #include <multiboot.h>
 
@@ -359,7 +358,7 @@ uint8_t terminal_color;
 
 uint16_t* terminal_buffer;
 unsigned long long point;
-
+extern multiboot_info_t* public_mbd;
 
 uint64_t* fadr;
 void printglyph(unsigned long* vram,int xsize,int x,int y,uint32_t c,unsigned char* font){
@@ -497,14 +496,14 @@ void terminal_putchar(char c)
                 
                 }   
             }
-            terminal_row++;
+            ++terminal_row;
             terminal_column=0;
             return;
         }
     
 	if(istextmode)terminal_putentryat(c, terminal_color, terminal_column, terminal_row);
     else printglyph((unsigned long*)public_mbd->framebuffer_addr,public_mbd->framebuffer_width,(terminal_column*8),terminal_row*16,0xffffffff,iso_font+c*16);
-
+    
 }
 
  
@@ -528,5 +527,60 @@ void printstring(const char* data)
 	terminal_write(data, strlen(data));
 
 }
-
- 
+inline void swap(char* x,char* y){
+    char t=*x;
+    *x=*y;
+    *y=t;
+}
+void reverse(char* str, int length) 
+{ 
+    int start = 0; 
+    int end = length -1; 
+    while (start < end) 
+    { 
+        swap((str+start), (str+end)); 
+        start++; 
+        end--; 
+    } 
+} 
+  
+// Implementation of itoa() 
+char* itoa(int num, char* str, int base) 
+{ 
+    int i = 0; 
+    bool isNegative = false; 
+  
+    /* Handle 0 explicitely, otherwise empty string is printed for 0 */
+    if (num == 0) 
+    { 
+        str[i++] = '0'; 
+        str[i] = '\0'; 
+        return str; 
+    } 
+  
+    // In standard itoa(), negative numbers are handled only with  
+    // base 10. Otherwise numbers are considered unsigned. 
+    if (num < 0 && base == 10) 
+    { 
+        isNegative = true; 
+        num = -num; 
+    } 
+  
+    // Process individual digits 
+    while (num != 0) 
+    { 
+        int rem = num % base; 
+        str[i++] = (rem > 9)? (rem-10) + 'a' : rem + '0'; 
+        num = num/base; 
+    } 
+  
+    // If number is negative, append '-' 
+    if (isNegative) 
+        str[i++] = '-'; 
+  
+    str[i] = '\0'; // Append string terminator 
+  
+    // Reverse the string 
+    reverse(str, i); 
+    return str; 
+} 

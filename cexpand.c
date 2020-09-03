@@ -10,9 +10,8 @@ unsigned char drivenum;
 char getmultiboot(multiboot_info_t* mbd,unsigned int magic){
     public_magic=magic;
     terminal_initialize();
-
     if(magic!=MULTIBOOT_BOOTLOADER_MAGIC){
-        printstring("Invalid bootloader magic number(Should be 0x2BADB002), dumped in EAX. HALT.");
+        printstring("Invalid bootloader magic number(Should be 0x2BADB002), dumped in EAX. HALT.\n");
         asm("movl public_magic,%EAX");
         hang();
     }

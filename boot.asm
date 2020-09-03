@@ -1,7 +1,7 @@
 ; Declare constants for the multiboot header.
 MBALIGN  equ  1 << 0            ; align loaded modules on page boundaries
 MEMINFO  equ  1 << 1            ; provide memory map
-FLAGS    equ  0b00000000000000000000000000000101 ; this is the Multiboot 'flag' field
+FLAGS    equ  0b00000000000000000000000000000111 ; this is the Multiboot 'flag' field
 MAGIC    equ  0x1BADB002        ; 'magic number' lets bootloader find the header
 CHECKSUM equ -(MAGIC + FLAGS)   ; checksum of above, to prove we are multiboot
  	extern getmultiboot
@@ -91,10 +91,12 @@ disable_cursor:
     pushad
 
 change:
+    cmp byte [tmb],1
+    jne cend
     mov esi,regs_90x60
     call write_regs
-    popad
 cend:
+    popad
     
     ;high-level kernel is entered. It's best to minimize the early
 	; environment where crucial features are offline. Note that the
@@ -111,13 +113,14 @@ cend:
 	; stack since (pushed 0 bytes so far) and the alignment is thus
 	; preserved and the call is well defined.
         ; note, that if you are building on Windows, C functions may have "_" prefix in assembly: _kernel_main
-   
     push eax
     push ebx
     call getmultiboot  
+
 version:
     push versionstring
     call printstring
+    mov [rootdrvnum],eax
 	cli
 initpic:
     push pic2 
@@ -161,30 +164,24 @@ initpic:
     call printstring
     mov al,0
     out 0x21,al
-scan_pci:
+scan_dev:
     push pci
     call printstring
-    push ok
+    extern scandev
+    call scandev
+    push pciscancomplete
     call printstring
-xor cx,cx
-jumptothis:
-    mov [dma_buffer],cx
-    push teststr
-    call printstring
-    mov cx,[dma_buffer]
-    sti
-    hlt
-    cli
+   
 
-inc cx
-cmp cx,1234
-jne jumptothis
+
    
   global hang             
 cli
 hang:	
-    hlt 
-    jmp hang
+    push teststr
+    call printstring
+    hlt
+    jmp $
 end:
 VGA_MISC_WRITE		EQU	3C2h
 VGA_SEQ_INDEX		EQU	3C4h
@@ -357,10 +354,11 @@ irq1:
 section .data
     global keyboardbuffer
     ok db "OK",10,0
-    teststr db "TESTING",0
+    pciscancomplete db "disk controller scan complete.",10,0
+    teststr db "If you see this and your not a dev,restart your computer.",0
     versionstring db "Starting NetDOS/32...",10,0
     pic2 db "Initializing PIC and interrupts...",0
-    pci db "Scanning PCI devices...",10,0
+    pci db "Looking for disk controllers...",10,0
     psoutofboundfailsafe db 0
     keyboardbuffer db 0
 regs_90x60:
@@ -375,3 +373,6 @@ regs_90x60:
 	db 0FFh
 ; GC (no)
 ; AC (no)
+
+bootinfo:
+    rootdrvnum dd 0

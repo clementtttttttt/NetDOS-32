@@ -17,11 +17,11 @@ boot.o:boot.asm
 	@$(NASM) -o $@ $<  $(NFLAGS)
 %.o:%.c font.h Makefile 
 	@echo "[CC($(CC))] $<"
-	@$(CC) $(CFLAGS) -ffreestanding -std=gnu99 -c -o $@ $< -I /usr/include/multiboot/   
+	@$(CC) $(CFLAGS) -ffreestanding -std=gnu11 -c -o $@ $< -I /usr/include/multiboot/   
 kernel.elf:$(OBJ) boot.o
 	@echo "[LD($(LD))] $(OBJ) boot.o"
 	@$(LD)  -Tlinker.ld -o $@ -ffreestanding -O2 -nostdlib  boot.o  $(OBJ) -lgcc   $(CFLAGS)
 clean:
 	-rm *.o *.elf 
 test: all
-	qemu-system-x86_64 -cdrom os.iso
+	qemu-system-x86_64 -cdrom os.iso 
