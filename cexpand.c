@@ -7,6 +7,7 @@ unsigned int public_magic;
 char stringbuffer[100]="ABCD";
 unsigned char rootdisktype;
 unsigned char drivenum;
+
 char getmultiboot(multiboot_info_t* mbd,unsigned int magic){
     public_magic=magic;
     terminal_initialize();
@@ -33,3 +34,7 @@ char getmultiboot(multiboot_info_t* mbd,unsigned int magic){
     return drivenum;
     
 }
+
+
+
+

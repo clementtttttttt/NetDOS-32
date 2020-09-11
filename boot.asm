@@ -1,16 +1,27 @@
 ; Declare constants for the multiboot header.
 MBALIGN  equ  1 << 0            ; align loaded modules on page boundaries
-MEMINFO  equ  1 << 1            ; provide memory map
+MEMINFO  equ  1 << 1           ; provide memory map
 FLAGS    equ  0b00000000000000000000000000000111 ; this is the Multiboot 'flag' field
 MAGIC    equ  0x1BADB002        ; 'magic number' lets bootloader find the header
 CHECKSUM equ -(MAGIC + FLAGS)   ; checksum of above, to prove we are multiboot
  	extern getmultiboot
 extern printstring
+extern _kernel_start
+extern _kernel_end
 ; Declare a multiboot header that marks the program as a kernel. These are magic
 ; values that are documented in the multiboot standard. The bootloader will
 ; search for this signature in the first 8 KiB of the kernel file, aligned at a
 ; 32-bit boundary. The signature is in its own section so the header can be
 ; forced to be within the first 8 KiB of the kernel file.
+section .bss
+	align 4096
+
+stack_bottom:
+    resb 16384 ; 16 KiB
+stack_top:
+    resb 0
+dma_buffer:
+    resb 16384
 section .multiboot
 global tmb
 align 4
@@ -21,9 +32,10 @@ align 4
     dq 0
     dd 0
 tmb dd 0
-    dd 1024
-    dd 768
+    dd 0
+    dd 0
     dd 32
+    
 ; The multiboot standard does not define the value of the stack pointer register
 ; (esp) and it is up to the kernel to provide a stack. This allocates room for a
 ; small stack by creating a symbol at the bottom of it, then allocating 16384
@@ -35,7 +47,6 @@ tmb dd 0
 ; stack is properly aligned and failure to align the stack will result in
 ; undefined behavior.
 
- 
 ; The linker script specifies _start as the entry point to the kernel and the
 ; bootloader will jump to this position once the kernel has been loaded. It
 ; doesn't make sense to return from this function as the bootloader is gone.
@@ -61,13 +72,12 @@ gdtinfo:
 gdt         dd 0,0        ; entry 0 is always unused
 flatcode    db 0xff, 0xff, 0, 0, 0, 10011010b, 11001111b, 0
 flatdata    db 0xff, 0xff, 0, 0, 0, 10010010b, 11001111b, 0
-framebuffer db 0xbf, 0x00, 0x00, 0x80, 0x0b, 11110010b, 11000000b, 0
 gdt_end:
 	; To set up a stack, we set the esp register to point to the top of our
 	; stack (as it grows downwards on x86 systems). This is necessarily done
 	; in assembly as languages such as C cannot function without a stack.
 	mov esp, stack_top
-
+    
 	; This is a good place to initialize crucial processor state before the
 	lgdt[gdtinfo]
 
@@ -97,12 +107,12 @@ change:
     call write_regs
 cend:
     popad
-    
+
     ;high-level kernel is entered. It's best to minimize the early
 	; environment where crucial features are offline. Note that the
 	; processor is not fully initialized yet: Features such as floating
 	; point instructions and instruction set extensions are not initialized
-	; yet. The GDT should be loaded here. Paging should be enabled here.
+	; yet. The GDT should be loaded here. Paging should be enabled here.s
 	; C++ features such as global constructors and exceptions will require
 	; runtime support to work as well.
  
@@ -122,9 +132,11 @@ version:
     call printstring
     mov [rootdrvnum],eax
 	cli
+
 initpic:
     push pic2 
     call printstring
+    
     mov al,0x11
     out 0x20,al
     call iowait
@@ -139,6 +151,7 @@ initpic:
     mov al,4
     out 0x21,al
     call iowait
+
     mov al,2
     out 0xa1,al
     call iowait
@@ -147,23 +160,29 @@ initpic:
     call iowait
     out 0xa1,al
     call iowait
-    
     mov eax,irq0
     mov [idt.pitaddr],ax
     mov eax,irq0
     shr eax,16
     mov [idt.pitaddrh],ax
-    
     mov eax,irq1
     mov [idt.keyaddr],ax
     mov eax,irq1
     shr eax,16
     mov [idt.keyaddrh],ax
+    mov eax,pagefaulthandler
+    mov [idt.pfaddr],ax
+    shr eax,16
+    mov [idt.pfaddrh],ax
     lidt[idtinfo]
     push ok
     call printstring
     mov al,0
     out 0x21,al
+paging:
+    extern initpage
+    call initpage
+
 scan_dev:
     push pci
     call printstring
@@ -171,15 +190,15 @@ scan_dev:
     call scandev
     push pciscancomplete
     call printstring
-   
-
-
-   
+ 
+    
   global hang             
 cli
 hang:	
     push teststr
     call printstring
+    mov byte [0x78374844],0x34
+    cli
     hlt
     jmp $
 end:
@@ -292,18 +311,18 @@ iowait:
 
 align 16
 
-section .bss
-      stack_bottom:
-    resb 16384 ; 16 KiB
-    stack_top:
-    resb 0
-    dma_buffer:
-    resb 16384
 section .isr
 idtinfo dw endidt-idt-1
         dd idt
 idt:
-    times 0x20 dq 0
+    times 0xe dq 0
+    .pf:
+        .pfaddr dw 0
+        dw 0x8 
+        db 0
+        db 0b10001110
+        .pfaddrh dw 0
+    times 17 dq 0
     .pit:
         .pitaddr dw 0 
         dw 0x8
@@ -329,6 +348,7 @@ kdata:
     .lookup_table_shift dw 0
         db "!@#$%^&*()_+",8h,9h,"QWERTYUIOP{}",10,0,"ASDFGHJKL:",22h,'~',0x7a,0x7c,"ZXCVBNM",'<','>','?',0,0,0,20h,0x2a
         times (0xe5-0x3b) db 0
+
 irq0:
     pushad
     mov al,0x20
@@ -342,18 +362,44 @@ irq1:
     add bl,al
     mov cl,[ebx]
     mov [keyboardbuffer],cl
-    
-    
-    
-    
-    
+
     mov al,0x20
     out 0x20,al
     popad
     iretd
+global pop_stack
+pop_stack:
+    pop eax
+    ret
+extern c_pfh
+pagefaulthandler:
+    pushad
+    call c_pfh
+    popad
+    pop edx
+    add dword [esp],1
+    iret
+dc:
+    pushad
+    mov eax,cr0
+    or eax,60000000h    
+    mov cr0,eax
+    popad
+    ret
+ec:
+    push eax
+    mov eax,cr0
+    and eax,0x9fffffff
+    mov cr0,eax
+    pop eax
+    ret
+global ec,dc
+
+    global ok
 section .data
     global keyboardbuffer
     ok db "OK",10,0
+    pf db 10,"Page Fault",10,0
     pciscancomplete db "disk controller scan complete.",10,0
     teststr db "If you see this and your not a dev,restart your computer.",0
     versionstring db "Starting NetDOS/32...",10,0
@@ -361,6 +407,7 @@ section .data
     pci db "Looking for disk controllers...",10,0
     psoutofboundfailsafe db 0
     keyboardbuffer db 0
+    db 0
 regs_90x60:
 ; MISC
 	db 0Eh
@@ -373,6 +420,29 @@ regs_90x60:
 	db 0FFh
 ; GC (no)
 ; AC (no)
-
+global loadpagedir
+global enablepage
+loadpagedir:
+    push ebp
+    mov ebp,esp
+    mov eax,[esp+8]
+    mov cr3,eax
+    mov esp,ebp
+    pop ebp
+    ret
+    
+enablepage:
+    push ebp
+    mov ebp,esp
+    mov eax,cr0
+    or eax,0x80000010
+    mov cr0,eax
+    mov esp,ebp
+    pop ebp
+    
+    ret
 bootinfo:
     rootdrvnum dd 0
+
+global freeram    
+freeram:

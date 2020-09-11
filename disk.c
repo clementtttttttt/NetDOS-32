@@ -1,6 +1,7 @@
 #include <stdint.h>
 #include "io.h"
-
+                char a[100]={0};
+extern char* itoa(unsigned int, char*, int);
 extern void printstring();
 uint16_t readconfigword(uint8_t bus, uint8_t slot, uint8_t func, uint8_t offset){
     uint32_t address;
@@ -22,7 +23,6 @@ void scandev(){
                     goto skip;
                 }
                 printstring("ATA controller detected in bus ");
-                char a[100]={0};
                 itoa(bus,a,10);
                 printstring(a);
                 printstring(",is device no.");

@@ -1,6 +1,6 @@
 OBJ=$(patsubst %.c,%.o,$(wildcard *.c))
 CC=i686-elf-gcc
-CFLAGS=-Wextra -Wall -O2 -s -Wno-int-to-pointer-cast
+CFLAGS=-Wextra -Wall -O2 -s -Wno-int-to-pointer-cast -Wno-sign-compare -Wno-address 
 NASM=nasm
 NFLAGS=-felf32 
 LD=i686-elf-gcc
@@ -12,16 +12,19 @@ os.iso:kernel.elf
 	@cp grub.cfg isodir/boot/grub/grub.cfg
 	@sudo grub-mkrescue -o os.iso isodir
 	
+	
 boot.o:boot.asm
 	@echo "[NASM($(NASM))] $<"
 	@$(NASM) -o $@ $<  $(NFLAGS)
-%.o:%.c font.h Makefile 
-	@echo "[CC($(CC))] $<"
-	@$(CC) $(CFLAGS) -ffreestanding -std=gnu11 -c -o $@ $< -I /usr/include/multiboot/   
+%.o:%.c Makefile include/font.h
+	@echo "[CC($(CC))] $<" 
+	@$(CC) $(CFLAGS) -ffreestanding -std=gnu99 -c -o $@ $< -I /usr/include/multiboot/ -nostdlib -I include  
 kernel.elf:$(OBJ) boot.o
 	@echo "[LD($(LD))] $(OBJ) boot.o"
-	@$(LD)  -Tlinker.ld -o $@ -ffreestanding -O2 -nostdlib  boot.o  $(OBJ) -lgcc   $(CFLAGS)
+	@$(LD)  -Tlinker.ld -o $@ -ffreestanding -O2 -nostdlib  boot.o  $(OBJ) -lgcc   $(CFLAGS) 
 clean:
 	-rm *.o *.elf 
+test4g: all
+	qemu-system-x86_64 -cdrom os.iso -m 4G
 test: all
-	qemu-system-x86_64 -cdrom os.iso 
+	qemu-system-i386 -cdrom os.iso
