@@ -197,7 +197,6 @@ cli
 hang:	
     push teststr
     call printstring
-    mov byte [0x78374844],0x34
     cli
     hlt
     jmp $
@@ -357,16 +356,35 @@ irq0:
     iretd
 irq1:
     pushad
+    cmp BYTE [kdata.shiftbit],0
+    je n
+    mov ebx,kdata.lookup_table_shift
+    jmp keycode
+    n:
     mov ebx,kdata.lookup_table
+    keycode:
     in al,60h
+    mov [keycodeb],al
+    cmp al,0x3a
+    je shift_handler
+    cmp al,0x2a
+    je shift_handler
+    cmp al,0xaa
+    je shift_handler
     add bl,al
     mov cl,[ebx]
     mov [keyboardbuffer],cl
-
+    push keyboardbuffer
+    call printstring
+    pop eax
+    skip:
     mov al,0x20
     out 0x20,al
     popad
     iretd
+shift_handler:
+    xor byte [kdata.shiftbit],1
+    jmp skip 
 global pop_stack
 pop_stack:
     pop eax
@@ -374,10 +392,13 @@ pop_stack:
 extern c_pfh
 pagefaulthandler:
     pushad
+    mov edx, cr2
+    push edx
     call c_pfh
+    pop edx
     popad
     pop edx
-    add dword [esp],1
+    add dword [esp],3
     iret
 dc:
     pushad
@@ -399,13 +420,13 @@ global ec,dc
 section .data
     global keyboardbuffer
     ok db "OK",10,0
-    pf db 10,"Page Fault",10,0
-    pciscancomplete db "disk controller scan complete.",10,0
+    pciscancomplete db "PCI scan complete.",10,0
     teststr db "If you see this and your not a dev,restart your computer.",0
     versionstring db "Starting NetDOS/32...",10,0
     pic2 db "Initializing PIC and interrupts...",0
-    pci db "Looking for disk controllers...",10,0
+    pci db "Scanning PCI...",10,0
     psoutofboundfailsafe db 0
+    keycodeb db 0
     keyboardbuffer db 0
     db 0
 regs_90x60:
@@ -422,6 +443,7 @@ regs_90x60:
 ; AC (no)
 global loadpagedir
 global enablepage
+; 
 loadpagedir:
     push ebp
     mov ebp,esp
@@ -434,15 +456,51 @@ loadpagedir:
 enablepage:
     push ebp
     mov ebp,esp
+     mov eax,cr4
+    or eax,0x10
+    mov cr4,eax
     mov eax,cr0
-    or eax,0x80000010
+    or eax,0x80000000
     mov cr0,eax
+   
     mov esp,ebp
     pop ebp
     
     ret
+global memtest
+memtest:
+    push edi
+    push esi
+    push ebx
+    mov esi,0xaa55aa55
+    mov edi,0x55aa55aa
+    mov eax,[esp+12+4]
+.l:
+    mov ebx,eax
+    add ebx,0xffc
+    mov edx,[ebx]
+    mov [ebx],esi
+    xor dword [ebx],0xffffffff
+    cmp edi,[ebx]
+    jne .f
+    xor dword [ebx],0xffffffff
+    cmp esi,[ebx]
+    jne .f
+    mov [ebx],edx
+    add eax,0x1000
+    cmp eax,[esp+12+8]
+    jbe .l
+    pop ebx
+    pop esi
+    pop edi
+    ret
+.f:
+    mov [ebx],edx
+    pop ebx
+    pop esi
+    pop edi
+    ret
 bootinfo:
     rootdrvnum dd 0
 
-global freeram    
-freeram:
+    

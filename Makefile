@@ -1,10 +1,10 @@
-OBJ=$(patsubst %.c,%.o,$(wildcard *.c))
+OBJ=$(patsubst %.c,%.o,$(wildcard *.c)) $(patsubst blibc/%.c,blibc/%.o,$(wildcard blibc/*.c))
 CC=i686-elf-gcc
 CFLAGS=-Wextra -Wall -O2 -s -Wno-int-to-pointer-cast -Wno-sign-compare -Wno-address 
 NASM=nasm
 NFLAGS=-felf32 
 LD=i686-elf-gcc
-all: os.iso 
+all: os.iso
 
 os.iso:kernel.elf
 	-@mkdir -p isodir/boot/grub
@@ -16,10 +16,10 @@ os.iso:kernel.elf
 boot.o:boot.asm
 	@echo "[NASM($(NASM))] $<"
 	@$(NASM) -o $@ $<  $(NFLAGS)
-%.o:%.c Makefile include/font.h
+%.o:%.c Makefile include/font.h 
 	@echo "[CC($(CC))] $<" 
-	@$(CC) $(CFLAGS) -ffreestanding -std=gnu99 -c -o $@ $< -I /usr/include/multiboot/ -nostdlib -I include  
-kernel.elf:$(OBJ) boot.o
+	@$(CC) $(CFLAGS) -ffreestanding -std=gnu99 -c -o $@ $< -I /usr/include/multiboot/ -I blibc/include -nostdlib -I include  
+kernel.elf:$(OBJ) boot.o 
 	@echo "[LD($(LD))] $(OBJ) boot.o"
 	@$(LD)  -Tlinker.ld -o $@ -ffreestanding -O2 -nostdlib  boot.o  $(OBJ) -lgcc   $(CFLAGS) 
 clean:
