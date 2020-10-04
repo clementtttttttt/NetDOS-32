@@ -23,7 +23,7 @@ kernel.elf:$(OBJ) boot.o
 	@echo "[LD($(LD))] $(OBJ) boot.o"
 	@$(LD)  -Tlinker.ld -o $@ -ffreestanding -O2 -nostdlib  boot.o  $(OBJ) -lgcc   $(CFLAGS) 
 clean:
-	-rm *.o *.elf 
+	-rm *.o *.elf blibc/*.o
 test4g: all
 	qemu-system-x86_64 -cdrom os.iso -m 4G
 test: all

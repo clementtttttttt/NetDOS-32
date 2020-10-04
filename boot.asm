@@ -31,7 +31,7 @@ align 4
     dq 0
     dq 0
     dd 0
-tmb dd 0
+tmb dd 1
     dd 0
     dd 0
     dd 32
@@ -63,7 +63,7 @@ _start:
 	; printf implementation. There are no security restrictions, no
 	; safeguards, no debugging mechanisms, only what the kernel provides
 	; itself. It has absolute and complete power over the
-
+    cli
  jmp gdt_end
 gdtinfo:
    dw gdt_end - gdt - 1   ;last byte in table
@@ -126,10 +126,12 @@ cend:
     push eax
     push ebx
     call getmultiboot  
-
+    pop ebp
+    pop ebp
 version:
     push versionstring
     call printstring
+    pop ebp
     mov [rootdrvnum],eax
 	cli
 
@@ -186,19 +188,20 @@ paging:
 scan_dev:
     push pci
     call printstring
+    pop ebp
     extern scandev
     call scandev
     push pciscancomplete
     call printstring
- 
+    pop ebp
     
   global hang             
-cli
+
 hang:	
     push teststr
     call printstring
-    cli
-    hlt
+    pop ebp
+    sti
     jmp $
 end:
 VGA_MISC_WRITE		EQU	3C2h
@@ -347,11 +350,13 @@ kdata:
     .lookup_table_shift dw 0
         db "!@#$%^&*()_+",8h,9h,"QWERTYUIOP{}",10,0,"ASDFGHJKL:",22h,'~',0x7a,0x7c,"ZXCVBNM",'<','>','?',0,0,0,20h,0x2a
         times (0xe5-0x3b) db 0
-
+extern taskswitch
+global taskswitch
 irq0:
     pushad
     mov al,0x20
     out 0x20,al
+    CALL taskswitch
     popad
     iretd
 irq1:

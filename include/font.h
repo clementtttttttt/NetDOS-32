@@ -497,7 +497,7 @@ void terminal_putchar(char c)
                 }   
             }
             ++terminal_row;
-            terminal_column=-1;
+            terminal_column=0;
             return;
         }
     
