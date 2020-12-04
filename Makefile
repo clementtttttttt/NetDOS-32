@@ -1,6 +1,6 @@
-OBJ=$(patsubst %.c,%.o,$(wildcard *.c)) $(patsubst blibc/%.c,blibc/%.o,$(wildcard blibc/*.c))
+OBJ=$(patsubst src/%.c,src/%.o,$(wildcard src/*.c))  $(patsubst blibc/%.c,blibc/%.o,$(wildcard blibc/*.c)) 
 CC=i686-elf-gcc
-CFLAGS=-Wextra -Wall -O2 -s -Wno-int-to-pointer-cast -Wno-sign-compare -Wno-address 
+CFLAGS=-Wextra -Wall -O2 -s -Wno-int-to-pointer-cast -Wno-sign-compare -Wno-address -fms-extensions
 NASM=nasm
 NFLAGS=-felf32 
 LD=i686-elf-gcc
@@ -13,17 +13,17 @@ os.iso:kernel.elf
 	@sudo grub-mkrescue -o os.iso isodir
 	
 	
-boot.o:boot.asm
+src/boot.o:src/boot.asm
 	@echo "[NASM($(NASM))] $<"
 	@$(NASM) -o $@ $<  $(NFLAGS)
 %.o:%.c Makefile include/font.h 
 	@echo "[CC($(CC))] $<" 
 	@$(CC) $(CFLAGS) -ffreestanding -std=gnu99 -c -o $@ $< -I /usr/include/multiboot/ -I blibc/include -nostdlib -I include  
-kernel.elf:$(OBJ) boot.o 
-	@echo "[LD($(LD))] $(OBJ) boot.o"
-	@$(LD)  -Tlinker.ld -o $@ -ffreestanding -O2 -nostdlib  boot.o  $(OBJ) -lgcc   $(CFLAGS) 
+kernel.elf:$(OBJ) src/boot.o 
+	@echo "[LD($(LD))] $(OBJ) src/boot.o"
+	@$(LD)  -Tlinker.ld -o $@ -ffreestanding -O2 -nostdlib  src/boot.o  $(OBJ) -lgcc   $(CFLAGS) 
 clean:
-	-rm *.o *.elf blibc/*.o
+	-rm *.o src/*.o *.elf blibc/*.o
 test4g: all
 	qemu-system-x86_64 -cdrom os.iso -m 4G
 test: all

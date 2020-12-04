@@ -533,29 +533,3 @@ void*   realloc(void *p, size_t size)
 
 	return ptr;
 }
-typedef unsigned int u32;
-typedef unsigned short u16;
-
-char temp[33];
-#define GET_VARIABLE_NAME(Variable) (#Variable)
-struct regs{
-    u32 edi, esi, ebp, esp,  ebx,  edx,  ecx, eax;
-};
-typedef struct regs regs;
-void c_pfh(u32 cr2,regs reg,u32 errcode,u32 eip,u16 cs){
-    printstring("\n*************Page Fault**************\nA page fault have occured. Stay calm, it won't kill your computer. If you are not a developer, ignore this message. Or else, read the details below. They helps.\nError code: 0b");
-    printstring(itoa(errcode,temp,2));
-    printstring(" cr2: 0x");
-    printstring(itoa(cr2,temp,16));
-    printstring(" cs: 0x");
-    printstring(itoa(cs,temp,16));
-    printstring(" eip: 0x");
-    printstring(itoa(eip,temp,16));
-    printstring(" eax: 0x");
-    printstring(itoa(reg.eax,temp,16));
-    if ((cs&3)==0){
-        printstring("\nThis is a kernel panic. Will not attempt to recover. The devs give you the most sincere apologies if you're in a hurry.\n********Reset your computer.*********");
-        while(1){}
-    }
-}
-
