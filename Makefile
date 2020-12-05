@@ -1,6 +1,6 @@
 OBJ=$(patsubst src/%.c,src/%.o,$(wildcard src/*.c))  $(patsubst blibc/%.c,blibc/%.o,$(wildcard blibc/*.c)) 
 CC=i686-elf-gcc
-CFLAGS=-Wextra -Wall -O2 -s -Wno-int-to-pointer-cast -Wno-sign-compare -Wno-address -fms-extensions
+CFLAGS=-Wextra -Wall -O2  -Wno-int-to-pointer-cast -Wno-sign-compare -Wno-address -fms-extensions 
 NASM=nasm
 NFLAGS=-felf32 
 LD=i686-elf-gcc
@@ -28,3 +28,5 @@ test4g: all
 	qemu-system-x86_64 -cdrom os.iso -m 4G
 test: all
 	qemu-system-i386 -cdrom os.iso
+install:all
+	sudo cp kernel.elf /boot/

@@ -15,4 +15,5 @@ struct gdt_entry
 } __attribute__((packed)); //or __attribute__((packed))
  typedef struct gdt_entry gdt_entry;
 
- 
+ void setgdtentry(gdt_entry* address,u32 base,u32 limit,u8 access,u8 flags);
+

@@ -18,11 +18,10 @@ section .bss
 	align 4096
 
 stack_bottom:
-    resb 16384 ; 16 KiB
+    resb 16384*4 ; 16 KiB
 stack_top:
     resb 0
-dma_buffer:
-    resb 16384
+
 section .multiboot
 global tmb
 align 4
@@ -35,7 +34,7 @@ align 4
 tmb dd 0
     dd 0
     dd 0
-    dd 32
+    dd 0
 kdata:
   .ctrlbit db 0
     .shiftbit db 0
@@ -73,26 +72,31 @@ _start:
 	; printf implementation. There are no security restrictions, no
 	; safeguards, no debugging mechanisms, only what the kernel provides
 	; itself. It has absolute and complete power over the
-    cli
+    
  jmp gdt_end
 gdtinfo:
    dw gdt_end - gdt - 1   ;last byte in table
    dd gdt                 ;start of table
- global tss
+ global gdt
 gdt         dd 0,0        ; entry 0 is always unused
 flatcode    db 0xff, 0xff, 0, 0, 0, 10011010b, 11001111b, 0
 flatdata    db 0xff, 0xff, 0, 0, 0, 10010010b, 11001111b, 0
+usercode    db 0xff,0xff,0,0,0,0xfa,0xcf,0
+userdata    db 0xff,0xff,0,0,0,0xf2,0xcf,0;
 tss         db 0xff, 0xff, 0, 0, 0, 10010010b, 11001111b, 0
+
 gdt_end:
 	; To set up a stack, we set the esp register to point to the top of our
 	; stack (as it grows downwards on x86 systems). This is necessarily done
 	; in assembly as languages such as C cannot function without a stack.
 	mov esp, stack_top
+	mov ebp,stack_top
     global gdtinfo	; This is a good place to initialize crucial processor state before the
 	lgdt[gdtinfo]
 
     jmp 0x8:load
 load:
+    cli
     mov dx,0x10
     mov ds,dx
     mov es,dx
@@ -115,6 +119,7 @@ change:
     jne cend
     mov esi,regs_90x60
     call write_regs
+    
 cend:
     popad
 
@@ -136,6 +141,7 @@ cend:
     push eax
     push ebx
     call getmultiboot  
+
     pop edx
     pop edx
 version:
@@ -144,7 +150,6 @@ version:
     pop edx
     mov [rootdrvnum],eax
 	cli
-
 initpic:
     push pic2 
     call printstring
@@ -209,19 +214,11 @@ extern ill_op_c
     out 0x21,al
 paging:
     extern initpage
-    call initpage
-scan_dev:
-    push pci
-    call printstring
-    pop edx
-    extern scandev
-    call scandev
-    push pciscancomplete
-    call printstring
-    pop edx 
+   call initpage
+ 
 
   global hang             
-
+    
 setup_pit:
     mov al,0x36
     out 0x43,al
@@ -403,10 +400,9 @@ idt:
         
 endidt:
 
-extern taskswitch
+extern timer
 extern state_dump
 extern regs
-registers: times 9 dd 0
 jfadr: dd hang
        dw 0x8
 irq0:
@@ -414,46 +410,22 @@ irq0:
     mov al,0x20
     out 0x20,al
     pop ax
-    call taskswitch    
+    call timer    
 
     iretd
 pop_buf dd 0
+extern c_irq1
 irq1:
     pushad
-    cmp BYTE [kdata.shiftbit],0
-    je n
-    mov ebx,kdata.lookup_table_shift
-    jmp keycode
-    n:
-    mov ebx,kdata.lookup_table
-    keycode:
-    in al,60h
-    mov [keycodeb],al
-    cmp al,0x3a
-    je shift_handler
-    cmp al,0x2a
-    je shift_handler
-    cmp al,0xaa
-    je shift_handler
-    add bl,al
-    mov cl,[ebx]
-    mov [keyboardbuffer],cl
-    push keyboardbuffer
-    call printstring
-    pop edx
-    skip:
     mov al,0x20
     out 0x20,al
+    
+    call c_irq1
+    
     popad
     iretd
-shift_handler:
-    xor byte [kdata.shiftbit],1
-    jmp skip
-global ltr_
-ltr_:
-    mov eax,[esp+4]
-    ltr ax
-    ret
+
+
 extern c_pfh
 pagefaulthandler:
     pushad
@@ -487,16 +459,13 @@ global ec,dc
 
     global ok
 section .data
-    global keyboardbuffer
     ok db "OK",10,0
     pciscancomplete db "PCI scan complete.",10,0
     teststr db "If you see this and your not a dev,restart your computer.",0
-    versionstring db "Starting NetDOS/32...",10,0
+    versionstring db 10,"Starting NetDOS/32...",10,0
     pic2 db "Initializing PIC and interrupts...",0
     pci db "Scanning PCI...",10,0
     psoutofboundfailsafe db 0
-    keycodeb db 0
-    keyboardbuffer db 0
     db 0
 regs_90x60:
 ; MISC

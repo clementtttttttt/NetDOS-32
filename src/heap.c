@@ -1,4 +1,5 @@
 #include "heap.h" 
+#define debug 0
 void k_heapSSInit(KHEAPSS *heap, uint32 bsize) {
 	heap->fblock = 0;
 	heap->bsize = bsize;
@@ -49,6 +50,9 @@ void *k_heapSSAlloc(KHEAPSS *heap, uint32 size) {
 			stack = (uint32*)&b[1];
 			ptr = stack[b->top++];
 			ptr = (uintptr)&b[1] + ptr;
+            if(debug){
+                printstring("allocated 1x 1kb block\n");
+            }
 			return (void*)ptr;
 		}
 	}
@@ -80,4 +84,14 @@ void k_heapSSFree(KHEAPSS *heap, void *ptr) {
 	/* place entry back into stack */
 	stack[--b->top] = _ptr - (uintptr)&b[1];
 	return;
+}
+extern KHEAPSS heap;
+void* khmalloc(uint32 s){
+
+    return k_heapSSAlloc(&heap,s);
+    
+}
+void khfree(void* addr){
+    k_heapSSFree(&heap,addr);
+    return;
 }

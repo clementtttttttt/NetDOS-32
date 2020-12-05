@@ -310,11 +310,14 @@ uint8_t terminal_color;
 uint16_t* terminal_buffer;
 unsigned long long point;
 extern multiboot_info_t* public_mbd;
-
+volatile bool tmp=false;
 uint64_t* fadr;
+#pragma GCC push_options
+#pragma GCC optimize "-O0"
+#pragma GCC target("arch=pentium-mmx")
 void printglyph(unsigned long* vram,int xsize,int x,int y,uint32_t c,unsigned char* font){
     int i;
-    unsigned long *p,d;
+    unsigned int *p,d;
     for(i=0;i<18;i++){
         p=vram+(y+i)*xsize+x;
         d=font[i];
@@ -329,7 +332,7 @@ void printglyph(unsigned long* vram,int xsize,int x,int y,uint32_t c,unsigned ch
     }
     return;
 }
-
+#pragma GCC pop_options
 void terminal_initialize(void) 
 
 {
@@ -372,9 +375,8 @@ void terminal_putentryat(char c, uint8_t color, size_t x, size_t y)
 
 }
 
-volatile bool printstring_lock=false;
 
-
+volatile bool slock;
 #include <string.h>
 void scroll_terminal(){
     uint16_t* dest;
@@ -407,13 +409,12 @@ void scroll_terminal(){
             }
         }
     }
-
 }
-
 
 void terminal_putchar(char c) 
 
 {
+
     if(istextmode){
         if (++terminal_column == VGA_WIDTH) {
 
@@ -425,10 +426,9 @@ void terminal_putchar(char c)
         }
     }
    else{
-        if((++terminal_column*8)>=public_mbd->framebuffer_width){
+        if((++terminal_column)*8>=public_mbd->framebuffer_width){
             terminal_column=0;
             if(++terminal_row*16>=public_mbd->framebuffer_height){
-                
                 scroll_terminal();
             }
                 
@@ -455,7 +455,7 @@ void terminal_putchar(char c)
     
 	if(istextmode)terminal_putentryat(c, terminal_color, terminal_column, terminal_row);
     else printglyph((unsigned long*)public_mbd->framebuffer_addr,public_mbd->framebuffer_width,(terminal_column*8-8),terminal_row*16,0xffffffff,iso_font+c*16);
-    
+
 }
 
 void terminal_write(const char* data, size_t size) 
@@ -466,21 +466,20 @@ void terminal_write(const char* data, size_t size)
     {
 		terminal_putchar(data[i]);
     }
-
 }
+extern _Bool task_init;
+volatile bool printstring_lock=false;
 
 void printstring(const char* data) 
 
 {
+    if(task_init)asm("cli");
     terminal_write(data, strlen(data));
+    if(task_init)asm("sti");
     
 }
 
-void printstring_wrapper(const char* in){
-        asm("cli\n");
-        printstring(in);
-        asm("sti\n");
-}
+
 void swap(char* x,char* y){
     char t=*x;
     *x=*y;
@@ -534,6 +533,6 @@ char* itoa(unsigned int num, char* str, int base)
     str[i] = '\0'; // Append string terminator 
   
     // Reverse the string 
-    reverse(str, i); 
+    reverse(str, i);
     return str; 
 } 

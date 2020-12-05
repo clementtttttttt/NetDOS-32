@@ -18,11 +18,9 @@ char getmultiboot(multiboot_info_t* mbd,unsigned int magic){
     }
     switch(mbd->boot_device>>28){
         case 0xe:
-            printstring("Root drive is cdrom\n");
             rootdisktype=0x3;
             break;
         case 0x8:
-            printstring("Root drive is hdd\n");
             rootdisktype=0x2;
             break;
     
@@ -30,6 +28,9 @@ char getmultiboot(multiboot_info_t* mbd,unsigned int magic){
     }
         public_mbd=mbd;
     drivenum=mbd->boot_device>>24&0b1111;
+    char tt3[100];
+    printstring("framebuffer address=0x");
+    printstring(itoa(mbd->framebuffer_addr,tt3,16));
     return drivenum;
     
 }

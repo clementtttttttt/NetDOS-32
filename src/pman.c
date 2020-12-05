@@ -23,6 +23,7 @@ void c_pfh(u32 cr2,u32 edi,u32 esi,u32 ebp,u32 esp,u32 ebx,u32 edx,u32 ecx,u32 e
     printstring(itoa(ecx,temp,16));
     if ((cs&3)==0){
         printstring("\nThis is a kernel panic. Will not attempt to recover. The devs give you the most sincere apologies if you're in a hurry.\n********Reset your computer.*********");
+        asm("cli;hlt");
         while(1){}
     }
 }
@@ -76,7 +77,6 @@ uint32_t ramsize;
 unsigned int memtest(unsigned int start,unsigned  int end);
 void loadpagedir(uint32_t* pagedir);
 void enablepage();
-extern char* a;
 extern const char* ok;
 int pmap(uintn_t physical_addr,uintn_t v_addr,uintn_t page_count){
     asm("cli");
@@ -86,13 +86,14 @@ int pmap(uintn_t physical_addr,uintn_t v_addr,uintn_t page_count){
     asm("sti");
     
 }
+char a[100]={0};
 void initpage(){
     printstring("Initializing paging...");
     ramsize=memtest(0x800000,0xbfffffff);
     printstring("RAM ");
     printstring(itoa(ramsize,a,10));
     printstring("");
-    printstring(" B OK\n");
+    printstring(" B OK");
     pagedir=(pagedir_t*)kpmalloc_a(sizeof(pagedir_t));
     memset(pagedir,0,sizeof(pagedir_t));
     current_dir=pagedir;
@@ -102,7 +103,12 @@ void initpage(){
         pagedir->entrys[i].struct_p.addr=i*0x400000;
         ++i;
     }
-
+    i=0;
+    while(i<128){
+          pagedir->entrys[i+896].struct_p.flags=(uint32_t)0b10000111;
+        pagedir->entrys[i+896].struct_p.addr=i*0x400000;
+        ++i;
+    }
     if(!tmb){
         pagedir->entrys[(uint32_t)public_mbd->framebuffer_addr>>22].raw=((uint32_t)public_mbd->framebuffer_addr)|0b10000111;
         pagedir->entrys[((uint32_t)public_mbd->framebuffer_addr>>22)-1].raw=((uint32_t)public_mbd->framebuffer_addr-0x400000)|0b10000111;
