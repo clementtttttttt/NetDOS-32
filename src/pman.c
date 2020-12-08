@@ -1,31 +1,37 @@
 #include<pman.h> 
 #include<multiboot.h>
 #include<stdint.h>
+#include<taskswitch.h>
 extern int tmb;
 uintn_t place_addr=&endadr;
-
+extern taskinfo* c_task;
 extern multiboot_info_t* public_mbd;
 extern void printstring(char*);
 extern char* itoa(unsigned int, char*, int);
 char temp[33];
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wunused-parameter"
-void c_pfh(u32 cr2,u32 edi,u32 esi,u32 ebp,u32 esp,u32 ebx,u32 edx,u32 ecx,u32 eax,u32 errcode,u32 eip,u16 cs){
-    printstring("\n*************Page Fault**************\nA page fault have occured. Stay calm, it won't kill your computer. If you are not a developer, ignore this message. Or else, read the details below. They helps.\nError code: 0b");
-    printstring(itoa(errcode,temp,2));
-    printstring(" cr2: 0x");
-    printstring(itoa(cr2,temp,16));
-    printstring(" cs: 0x");
-    printstring(itoa(cs,temp,16));
-    printstring(" eip: 0x");
-    printstring(itoa(eip,temp,16));
-    printstring(" eax: 0x");
-    printstring(itoa(ecx,temp,16));
-    if ((cs&3)==0){
-        printstring("\nThis is a kernel panic. Will not attempt to recover. The devs give you the most sincere apologies if you're in a hurry.\n********Reset your computer.*********");
-        asm("cli;hlt");
-        while(1){}
+
+void c_pfh(u32 errcode,u32 eip,u16 cs){
+    asm("cli");
+    printstring_v("\n*************Page Fault**************\nA page fault have occured. Stay calm, it won't kill your computer. If you are not a developer, ignore this message. Or else, read the details below. They helps.\nError code: 0b");
+    printstring_v(itoa(errcode,temp,2));
+    printstring_v(" cs: 0x");
+    printstring_v(itoa(cs,temp,16));
+    printstring_v(" eip: 0x");
+    printstring_v(itoa(eip,temp,16));
+
+    if (c_task->id==1){
+        printstring_v("\nThis is a kernel panic. Will not attempt to recover. The devs give you the most sincere apologies if you're in a hurry.\n********Reset your computer.*********");
+        while(1);
     }
+    printstring_v("\nKilling trigger process...\n");
+    c_task->state=SEGV;
+    asm("movw $0x10,%ax;mov %ax,%ds;mov %ax,%es;mov %ax,%fs;mov %ax,%gs;mov %ax,%ss;");
+    asm("popl %eax;popl %eax;popl %eax;popl %eax;popl %eax;");
+    asm("jmp taskswitch");
+    while(1);
+   
 }
 #pragma GCC diagnostic pop
 /*kpmalloc functions*/
@@ -99,20 +105,20 @@ void initpage(){
     current_dir=pagedir;
     int i=0;
     while(i*0x400000<place_addr){
-        pagedir->entrys[i].struct_p.flags=(uint32_t)0b10000111;
+        pagedir->entrys[i].struct_p.flags=(uint32_t)0b10000101;
         pagedir->entrys[i].struct_p.addr=i*0x400000;
         ++i;
     }
     i=0;
     while(i<128){
-          pagedir->entrys[i+896].struct_p.flags=(uint32_t)0b10000111;
+          pagedir->entrys[i+896].struct_p.flags=(uint32_t)0b10000101;
         pagedir->entrys[i+896].struct_p.addr=i*0x400000;
         ++i;
     }
     if(!tmb){
-        pagedir->entrys[(uint32_t)public_mbd->framebuffer_addr>>22].raw=((uint32_t)public_mbd->framebuffer_addr)|0b10000111;
-        pagedir->entrys[((uint32_t)public_mbd->framebuffer_addr>>22)-1].raw=((uint32_t)public_mbd->framebuffer_addr-0x400000)|0b10000111;
-        pagedir->entrys[((uint32_t)public_mbd->framebuffer_addr>>22)+1].raw=((uint32_t)public_mbd->framebuffer_addr+0x400000)|0b10000111;
+        pagedir->entrys[(uint32_t)public_mbd->framebuffer_addr>>22].raw=((uint32_t)public_mbd->framebuffer_addr)|0b10000101;
+        pagedir->entrys[((uint32_t)public_mbd->framebuffer_addr>>22)-1].raw=((uint32_t)public_mbd->framebuffer_addr-0x400000)|0b10000101;
+        pagedir->entrys[((uint32_t)public_mbd->framebuffer_addr>>22)+1].raw=((uint32_t)public_mbd->framebuffer_addr+0x400000)|0b10000101;
         
         
     }

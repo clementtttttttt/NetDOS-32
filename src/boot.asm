@@ -406,31 +406,56 @@ extern regs
 jfadr: dd hang
        dw 0x8
 irq0:
-    push ax
+    cli
+    pushad
+    mov ax,ds
+    push eax
+    mov ax,0x10
+    mov ds,ax
+    mov es,ax
+    mov fs,ax
+    mov gs,ax
     mov al,0x20
     out 0x20,al
-    pop ax
     call timer    
-
+    pop ebx
+    mov ds,bx
+    mov es,bx
+    mov fs,bx
+    mov gs,bx
+    popad
+    or dword [esp+8],0x200
     iretd
 pop_buf dd 0
 extern c_irq1
 irq1:
+    cli
     pushad
+    mov ax,ds
+    push eax
+    mov ax,0x10
+    mov ds,ax
+    mov es,ax
+    mov fs,ax
+    mov gs,ax
     mov al,0x20
     out 0x20,al
-    
-    call c_irq1
-    
+    in al,60h
+    mov eax,0
+    push dword eax
+    call c_irq1    
+    pop ebx
+    pop ebx
+    mov ds,bx
+    mov es,bx
+    mov fs,bx
+    mov gs,bx
     popad
     iretd
 
 
 extern c_pfh
 pagefaulthandler:
-    pushad
-    mov edx, cr2
-    push edx
     call c_pfh
 extern c_irq7 
 irq7handler:

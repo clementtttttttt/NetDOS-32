@@ -20,8 +20,8 @@ typedef struct TSS TSS;
 enum states{
     n=0,NORM=1,SEGV,MATHE,KILL,TERM,INT,CUS1,CUS2,CUS3,CUS4,CUS5,CUS6,end
 };
-//TODO: info_bitfield
-/*info_bitfield 
+//TODO: iss
+/*iss 
 
 |0|1|2|3|4|5|6|7|
 0:supervisor bit
@@ -32,10 +32,14 @@ struct taskinfo{
     u32 state;
     u32 id;
     void(*state_handler[end-1])(void);
-    u8 info_bitfield;
+        int iss;
+
     struct taskinfo* next;
+    struct taskinfo* prev;
     pagedir_t* page_dir;
-};
+    void* stack;
+}__attribute__((packed));
+typedef struct taskinfo taskinfo;
 void init_task();
 int ntask(u8* thread,_Bool issupervisor);
 void init_user();

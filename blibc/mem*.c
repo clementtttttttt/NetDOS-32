@@ -10,6 +10,7 @@ memcpy(void* dest,void* src, u64 count){
    // Copy contents of src[] to dest[] 
    for (u64 i=0; i<count; i++) 
        cdest[i] = csrc[i]; 
+   return dest;
 }
 void*
 memset(unsigned char* dest,u32 val,u64 count){
