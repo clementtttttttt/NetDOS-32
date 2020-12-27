@@ -32,7 +32,7 @@ struct taskinfo{
     u32 state;
     u32 id;
     void(*state_handler[end-1])(void);
-        int iss;
+        char iss;
 
     struct taskinfo* next;
     struct taskinfo* prev;

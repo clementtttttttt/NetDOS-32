@@ -470,8 +470,10 @@ void terminal_write(const char* data, size_t size)
 extern _Bool task_init;
 volatile bool printstring_lock=false;
 void printstring_v(const char* data){
+    asm("cli");
     terminal_write(data,strlen(data));
 }
+void printstring_u(const char * data){terminal_write(data,strlen(data));}
 void printstring(const char* data) 
 
 {

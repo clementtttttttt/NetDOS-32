@@ -1,4 +1,5 @@
-OBJ=$(patsubst src/%.c,src/%.o,$(wildcard src/*.c))  $(patsubst blibc/%.c,blibc/%.o,$(wildcard blibc/*.c)) 
+SOURCE=$(wildcard src/*.c) $(wildcard blibc/*.c) $(wildcard vfs/*.c) $(wildcard driver/*.c)
+OBJ=$(SOURCE:%.c=%.o)
 CC=i686-elf-gcc
 CFLAGS=-Wextra -Wall -O2  -Wno-int-to-pointer-cast -Wno-sign-compare -Wno-address -fms-extensions -g
 NASM=nasm

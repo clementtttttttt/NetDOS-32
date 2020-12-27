@@ -15,5 +15,12 @@ struct gdt_entry
 } __attribute__((packed)); //or __attribute__((packed))
  typedef struct gdt_entry gdt_entry;
 
- void setgdtentry(gdt_entry* address,u32 base,u32 limit,u8 access,u8 flags);
+typedef struct idt_entry{
+    u16 offset_l,selector;
+    u8 set_to_zero,type_attr;
+    u16 offset_h;
+} idt_entry;
+ 
+void setgdtentry(gdt_entry* address,u32 base,u32 limit,u8 access,u8 flags);
 
+void setidtentry(idt_entry* address,u16 offset_l,u16 selector,u8 type_attr,u16 offset_h);

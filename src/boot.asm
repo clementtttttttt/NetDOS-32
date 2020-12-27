@@ -32,8 +32,8 @@ align 4
     dq 0
     dd 0
 tmb dd 0
-    dd 0
-    dd 0
+    dd 1920
+    dd 1080
     dd 0
 kdata:
   .ctrlbit db 0
@@ -73,6 +73,8 @@ _start:
 	; safeguards, no debugging mechanisms, only what the kernel provides
 	; itself. It has absolute and complete power over the
     
+; 
+
  jmp gdt_end
 gdtinfo:
    dw gdt_end - gdt - 1   ;last byte in table
@@ -85,6 +87,11 @@ usercode    db 0xff,0xff,0,0,0,0xfa,0xcf,0
 userdata    db 0xff,0xff,0,0,0,0xf2,0xcf,0;
 tss         db 0xff, 0xff, 0, 0, 0, 10010010b, 11001111b, 0
 
+v86:
+jmp dword [v86_end]
+nop
+v86_end:
+dd 0
 gdt_end:
 	; To set up a stack, we set the esp register to point to the top of our
 	; stack (as it grows downwards on x86 systems). This is necessarily done
@@ -97,7 +104,8 @@ gdt_end:
     jmp 0x8:load
 load:
     cli
-    mov dx,0x10
+   
+  mov dx,0x10
     mov ds,dx
     mov es,dx
     mov fs,dx
@@ -218,7 +226,6 @@ paging:
  
 
   global hang             
-    
 setup_pit:
     mov al,0x36
     out 0x43,al
@@ -231,6 +238,8 @@ setup_multitasking:
     
 
 kernel_task:
+    mov al,0b11111110
+    out 0x21,al
 extern start_kernel_c
     jmp start_kernel_c
 hang:
@@ -238,8 +247,8 @@ hang:
 end:
 global read_eip
 read_eip:
-  pop eax
-  jmp eax
+    mov eax,[esp]
+    ret
   
 VGA_MISC_WRITE		EQU	3C2h
 VGA_SEQ_INDEX		EQU	3C4h
@@ -353,6 +362,8 @@ iowait:
 
 align 16
 
+global idt,idtinfo
+
 section .isr
 idtinfo dw endidt-idt-1
         dd idt
@@ -397,7 +408,7 @@ idt:
         db 0
         db 0b10001110
         .irq7addrh dw 0
-        
+    times 100 dq 0
 endidt:
 
 extern timer
@@ -405,11 +416,16 @@ extern state_dump
 extern regs
 jfadr: dd hang
        dw 0x8
+       
+extern geip
+ds_val: dw 0
 irq0:
     cli
+    pop dword [geip]
+    push dword [geip]
     pushad
     mov ax,ds
-    push eax
+    mov [ds_val],ax
     mov ax,0x10
     mov ds,ax
     mov es,ax
@@ -418,21 +434,23 @@ irq0:
     mov al,0x20
     out 0x20,al
     call timer    
-    pop ebx
+    mov bx,[ds_val]
     mov ds,bx
     mov es,bx
     mov fs,bx
     mov gs,bx
     popad
-    or dword [esp+8],0x200
+    cmp dword [esp+4],0x8
+    je s
+    jmp $
+    s:
     iretd
-pop_buf dd 0
 extern c_irq1
 irq1:
     cli
     pushad
     mov ax,ds
-    push eax
+    push ax
     mov ax,0x10
     mov ds,ax
     mov es,ax
@@ -441,11 +459,8 @@ irq1:
     mov al,0x20
     out 0x20,al
     in al,60h
-    mov eax,0
-    push dword eax
     call c_irq1    
-    pop ebx
-    pop ebx
+    pop bx
     mov ds,bx
     mov es,bx
     mov fs,bx
@@ -453,6 +468,21 @@ irq1:
     popad
     iretd
 
+global int0x80
+
+int0x80:
+
+
+    iret
+;void flush_ps2_buffer();
+flush_ps2_buffer:
+    push ax
+    in al,0x64
+    test al,1
+    in al,0x60
+    jz flush_ps2_buffer
+    pop ax
+    ret
 
 extern c_pfh
 pagefaulthandler:
